@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Trojka
+GenericName=Falling Blocks Game
+Comment=Match three falling blocks horizontally or diagonally
+Exec=trojka
+Icon=trojka
+Terminal=true
+Categories=Game;BlocksGame;
+Keywords=puzzle;blocks;tetris;curses;

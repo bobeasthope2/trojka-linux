@@ -1,0 +1,38 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Trojka
+Upstream-Contact: Maarten Los <maarten@djoe.iaf.nl>
+Source: Unix source distribution of 20 October 1995
+
+Files: *
+Copyright: 1989-1995 Maarten Los
+License: Trojka-Unix
+
+Files: debian/*
+Copyright: 2026 Bob Easthope <bob@mathscircle.com>
+License: Trojka-Unix
+ The packaging follows the licence of the work it packages.
+
+License: Trojka-Unix
+ THE NAME 'TROJKA' AS WELL AS THE GAME CONCEPT IS COPYRIGHTED BY MAARTEN
+ LOS. YOU ARE ALLOWED TO MAKE YOUR OWN IMPLEMENTION OF THE GAME FOR ANY
+ PLATFORM BUT THE ONES MENTIONED IN THE MANUAL PAGE AS LONG AS THE ABOVE
+ COPYRIGHT NOTICE IS MAINTAINED.
+ .
+ Trojka is free software on all platforms, except for the Macintosh,
+ where it's $10 shareware.
+ .
+ This means that you can copy and redistribute the program and its
+ _UNIX_- source within the _UNIX_-world only. You are allowed to make
+ modifications in the source code, _only_ to fit it to your systems needs
+ as long as you keep the appearance and the copyright notices intact.
+ .
+ To keep the versions a bit up to date, please mail any modification or
+ incompatibility to me and don't redestribute your modified code.
+ .
+ NOTE FOR REDISTRIBUTORS: these terms are not DFSG-free and are more
+ restrictive than they may first appear.  The last sentence asks that
+ modified source not be redistributed, and modification is permitted only
+ to fit the code to the building system's needs.  This package contains
+ modified source.  It is therefore suitable for personal and local use,
+ but it must not be uploaded to Debian, Ubuntu or any other general
+ distribution archive without the copyright holder's permission.

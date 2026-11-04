@@ -1,0 +1,453 @@
+Description: Add porting notes and the pty-based test harness
+ Neither is part of the upstream distribution.
+Author: Bob Easthope <bob@mathscircle.com>
+Last-Update: 2026-11-04
+
+diff -ruN empty/PORTING-LINUX.md docs2/PORTING-LINUX.md
+--- a/PORTING-LINUX.md	1970-01-01 01:00:00.000000000 +0100
++++ b/PORTING-LINUX.md	2026-11-04 13:50:26.406716930 +0000
+@@ -0,0 +1,84 @@
++# Trojka — Linux / modern gcc port
++
++Source: FreeBSD port `games/trojka`, distfile `trojka.tar.gz` (Maarten Los, 1989–1995).
++The untouched original is kept in `../pristine/trojka/`.
++
++## Build
++
++```sh
++make                 # gcc + ncurses
++./trojka             # play
++./trojka -s          # show high scores
++make install PREFIX=$HOME/.local
++```
++
++Needs `libncurses-dev`. Builds warning-free with
++`-std=c99 -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes -Wconversion`.
++
++## What had to change
++
++The 1992 code is K&R C with almost no standard headers and relies on
++implicit declarations, all of which modern C rejects.
++
++* **ANSI prototypes everywhere.** All K&R definitions converted; the
++  cross-file declarations that used to be hand-written `int foo();` lists
++  at the top of each `.c` now live in one new header, `proto.h`.
++  Functions that never returned a value are now `void`.
++* **Missing headers added:** `stdlib.h`, `string.h`, `unistd.h`, `time.h`,
++  `sys/stat.h`.
++* **`getopt()` renamed to `parse_args()`** — it clashed with the POSIX
++  `getopt(3)` declared in `unistd.h`.
++* **Key input rewritten.** The original did `ioctl(0, FIONREAD, &count)`
++  with a `long count` and then `getchar()`. On LP64 `FIONREAD` writes an
++  `int`, so the upper half of `count` was garbage, and mixing stdio with
++  curses misbehaves on modern terminals. Now uses ncurses `nodelay()` +
++  `getch()`, which gives the same "return 0 if nothing pending" semantics.
++* **`killkeys()`** was `fflush(stdin)` (undefined behaviour on Linux,
++  and a no-op in glibc). Now `flushinp()`.
++* **`delay()`** used `usleep(ms * 1200)`, which is undefined for values
++  over 1000000 µs — `showgameover()` asks for 1500 ms, i.e. 1.8 s. Now
++  `nanosleep()`. The original 1.2 fudge factor is preserved so game speed
++  is unchanged.
++* **Score file moved** from `/usr/games/lib/trojka.scores`, which an
++  ordinary user cannot create, to `$HOME/.trojka.scores`
++  (`scorefile_path()` in `hiscore.c`). A truncated or corrupt score file
++  is now detected and reset instead of being read into the table.
++* **`selectspeed()`** fell off the end of the function without returning
++  a value when `q` was pressed. Returns 0 now.
++* **`crmode()`/`nocrmode()`** replaced with `cbreak()`/`nocbreak()`.
++* **Terminal size is checked** (80x24 minimum) for all platforms, not
++  just the old SunOS branch.
++* **Cookie messages** were written to line 25, which does not exist on a
++  standard 80x24 terminal, so they silently vanished. `mesg_row()` in
++  `screen.c` falls back to the last line.
++* **Name entry** accepts DEL (0x7f) and `KEY_BACKSPACE` as well as `^H`,
++  and the name buffer is zeroed before use.
++* **`reset_f()` is now called from `resetgame()`** — the tag shadow matrix
++  kept stale `TAGGED` entries from the previous game.
++* `statistics()` guards against a divide by zero on `blocks`.
++* Include guards fixed (`#endif _trojka_h_` is not valid C; the guard
++  macro in `trojka.h` was also misspelled, so the header had no guard).
++* `Makefile` rewritten: pkg-config for ncurses, pattern rules, a real
++  `install` target.
++
++Nothing in the game logic, scoring, layout or timing was changed.
++
++## Testing
++
++`tests/ttytest.py` drives the game inside a pseudo-terminal using `pyte` and
++prints the rendered 80x25 screen after each step, so gameplay can be
++checked without a human at the keyboard.
++
++```sh
++python3 -m venv /tmp/venv && /tmp/venv/bin/pip install pyte
++/tmp/venv/bin/python tests/ttytest.py tests/steps/steps2.txt -- ./trojka
++```
++
++Each step line is `delay<TAB>keys<TAB>label`. `TTYTEST_ROWS` /
++`TTYTEST_COLS` change the emulated terminal size; `TTYTEST_TERM`
++defaults to `vt100` because pyte does not implement the ECMA-48 `REP`
++escape that xterm's terminfo uses to compress repeated characters.
++
++To make block shapes deterministic, preload a stub `rand()`
++(see `tests/` — `fixedrand.c` always returns the same shape,
++`seqrand.c` replays a sequence from `$RANDSEQ`).
+diff -ruN empty/tests/fixedrand.c docs2/tests/fixedrand.c
+--- a/tests/fixedrand.c	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/fixedrand.c	2026-11-04 13:50:16.688800667 +0000
+@@ -0,0 +1,3 @@
++/* make every block the same shape so match-three is deterministic */
++int rand(void) { return 0; }
++void srand(unsigned s) { (void)s; }
+diff -ruN empty/tests/seqrand.c docs2/tests/seqrand.c
+--- a/tests/seqrand.c	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/seqrand.c	2026-11-04 13:50:16.688876899 +0000
+@@ -0,0 +1,15 @@
++/* rand() returns a scripted sequence from $RANDSEQ (comma separated), looping */
++#include <stdlib.h>
++#include <string.h>
++static int seq[64], n, idx;
++static void load(void) {
++    const char *s = getenv("RANDSEQ");
++    char buf[256], *p, *save;
++    if (!s) { seq[0]=0; n=1; return; }
++    strncpy(buf, s, sizeof buf - 1); buf[sizeof buf - 1]=0;
++    for (p = strtok_r(buf, ",", &save); p && n < 64; p = strtok_r(NULL, ",", &save))
++        seq[n++] = atoi(p);
++    if (!n) { seq[0]=0; n=1; }
++}
++int rand(void) { if (!n) load(); return seq[idx++ % n]; }
++void srand(unsigned s) { (void)s; }
+diff -ruN empty/tests/steps/steps10.txt docs2/tests/steps/steps10.txt
+--- a/tests/steps/steps10.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps10.txt	2026-11-04 13:47:56.544923245 +0000
+@@ -0,0 +1 @@
++1.5		small terminal
+diff -ruN empty/tests/steps/steps11.txt docs2/tests/steps/steps11.txt
+--- a/tests/steps/steps11.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps11.txt	2026-11-04 13:48:41.578590810 +0000
+@@ -0,0 +1,21 @@
++1.2	 	title
++1.0	2	speed 2
++1.1	62	play 1
++1.1	2	play 2
++1.1	42	play 3
++1.1	62	play 4
++1.1	2	play 5
++1.1	42	play 6
++1.1	62	play 7
++1.1	2	play 8
++1.1	42	play 9
++1.1	62	play 10
++1.1	2	play 11
++1.1	42	play 12
++1.1	62	play 13
++1.1	2	play 14
++1.1	42	play 15
++1.1	62	play 16
++1.1	2	play 17
++1.1	42	play 18
++2.0		mid-game state
+diff -ruN empty/tests/steps/steps1.txt docs2/tests/steps/steps1.txt
+--- a/tests/steps/steps1.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps1.txt	2026-11-04 13:41:40.858824893 +0000
+@@ -0,0 +1,3 @@
++0.8		initial title screen
++1.0	 	press SPACE -> speed select
++2.5	3	pick speed 3, watch block fall
+diff -ruN empty/tests/steps/steps2.txt docs2/tests/steps/steps2.txt
+--- a/tests/steps/steps2.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps2.txt	2026-11-04 13:42:17.423905310 +0000
+@@ -0,0 +1,8 @@
++1.2	 	speed select
++3.0	0	speed 0, block falling
++0.3	4	move LEFT (4)
++0.3	4	move LEFT again
++0.3	6	move RIGHT (6)
++1.0	h	vi-left (h)
++0.5	2	DROP (2)
++1.5		after drop: block landed
+diff -ruN empty/tests/steps/steps3.txt docs2/tests/steps/steps3.txt
+--- a/tests/steps/steps3.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps3.txt	2026-11-04 13:42:52.519664349 +0000
+@@ -0,0 +1,9 @@
++1.0	 	speed select
++0.8	0	speed 0
++0.4	4	left
++0.4	4	left (col 0)
++1.2	2	DROP block 1
++0.6	4	left (col 1)
++1.2	2	DROP block 2
++1.2	2	DROP block 3 at col 2 -> should TROJKA-wipe
++1.5		after wipe
+diff -ruN empty/tests/steps/steps4.txt docs2/tests/steps/steps4.txt
+--- a/tests/steps/steps4.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps4.txt	2026-11-04 13:43:52.570258712 +0000
+@@ -0,0 +1,13 @@
++1.0	 	speed select
++0.8	0	speed 0
++0.5	44	block1 A -> col0
++1.2	2	drop A col0
++0.5	4	block2 B -> col1
++1.2	2	drop B col1
++0.5	4	block3 A -> col1
++1.2	2	drop A col1 (y=2)
++1.2	2	drop B col2 (y=1)
++1.2	2	drop B col2 (y=2)
++0.6		pre-diagonal state
++1.2	2	drop A col2 (y=3) -> DIAGONAL
++1.5		after diagonal wipe
+diff -ruN empty/tests/steps/steps5.txt docs2/tests/steps/steps5.txt
+--- a/tests/steps/steps5.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps5.txt	2026-11-04 13:44:31.508566005 +0000
+@@ -0,0 +1,31 @@
++1.0	 	speed select
++0.8	9	speed 9 (fast)
++0.45	2	drop 1
++0.45	2	drop 2
++0.45	2	drop 3
++0.45	2	drop 4
++0.45	2	drop 5
++0.45	2	drop 6
++0.45	2	drop 7
++0.45	2	drop 8
++0.45	2	drop 9
++0.45	2	drop 10
++0.45	2	drop 11
++0.45	2	drop 12
++0.45	2	drop 13
++0.45	2	drop 14
++0.45	2	drop 15
++0.45	2	drop 16
++0.45	2	drop 17
++0.45	2	drop 18
++0.45	2	drop 19
++0.45	2	drop 20
++0.45	2	drop 21
++0.45	2	drop 22
++0.45	2	drop 23
++0.45	2	drop 24
++2.5		GAME OVER / name prompt
++2.0	BOB THE TESTER	type name
++1.0	\r	press RETURN
++2.0		back at title screen
++1.0	q	quit
+diff -ruN empty/tests/steps/steps6.txt docs2/tests/steps/steps6.txt
+--- a/tests/steps/steps6.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps6.txt	2026-11-04 13:45:25.078471560 +0000
+@@ -0,0 +1,48 @@
++1.5	 	speed select
++1.0	0	speed 0
++1.0	7	speedup key 7
++1.0	k	vi speedup k
++0.8	\x0c	Ctrl-L redraw
++0.8	6	right
++0.8	l	vi-right
++0.8	h	vi-left
++1.0	j	vi-drop
++1.0	0	INSDROP key 0
++1.2	 	SPACE drop
++1.0	q	quit game -> title
++2.0	 	new game
++1.0	5	speed 5
++0.3	2	drop 1
++0.3	2	drop 2
++0.3	2	drop 3
++0.3	2	drop 4
++0.3	2	drop 5
++0.3	2	drop 6
++0.3	2	drop 7
++0.3	2	drop 8
++0.3	2	drop 9
++0.3	2	drop 10
++0.3	2	drop 11
++0.3	2	drop 12
++0.3	2	drop 13
++0.3	2	drop 14
++0.3	2	drop 15
++0.3	2	drop 16
++0.3	2	drop 17
++0.3	2	drop 18
++0.3	2	drop 19
++0.3	2	drop 20
++0.3	2	drop 21
++0.3	2	drop 22
++0.3	2	drop 23
++0.3	2	drop 24
++0.3	2	drop 25
++0.3	2	drop 26
++3.0		game over
++1.5	ASANX	type name
++1.0	\x7f	DEL backspace
++1.0	\x08	BS backspace
++1.5	OK	finish name
++1.0	\r	RETURN
++2.0		title
++1.0	q	quit
+diff -ruN empty/tests/steps/steps7.txt docs2/tests/steps/steps7.txt
+--- a/tests/steps/steps7.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps7.txt	2026-11-04 13:46:35.039857089 +0000
+@@ -0,0 +1,40 @@
++2.0	 	speed select
++1.0	9	speed 9
++0.5	2	drop 1
++0.5	2	drop 2
++0.5	2	drop 3
++0.5	2	drop 4
++0.5	2	drop 5
++0.5	2	drop 6
++0.5	2	drop 7
++0.5	2	drop 8
++0.5	2	drop 9
++0.5	2	drop 10
++0.5	2	drop 11
++0.5	2	drop 12
++0.5	2	drop 13
++0.5	2	drop 14
++0.5	2	drop 15
++0.5	2	drop 16
++0.5	2	drop 17
++0.5	2	drop 18
++0.5	2	drop 19
++0.5	2	drop 20
++0.5	2	drop 21
++0.5	2	drop 22
++0.5	2	drop 23
++0.5	2	drop 24
++0.5	2	drop 25
++0.5	2	drop 26
++0.5	2	drop 27
++0.5	2	drop 28
++0.5	2	drop 29
++0.5	2	drop 30
++4.0		game over + name prompt
++2.0	VERYLONGNAMEOVERFLOWTESTXXXXXX	overlong name (cap 20)
++1.5	\x7f	DEL
++1.5	\x08	BS
++1.5	Q	finish
++1.5	\r	RETURN
++3.0		title
++1.5	q	quit
+diff -ruN empty/tests/steps/steps8.txt docs2/tests/steps/steps8.txt
+--- a/tests/steps/steps8.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps8.txt	2026-11-04 13:47:26.079700323 +0000
+@@ -0,0 +1,7 @@
++1.2	 	speed select
++0.8	0	speed 0
++1.0	t	+10000
++1.2	2	drop -> cookie 1
++1.0	t	+10000
++1.2	2	drop -> cookie 2
++1.0		cookie visible on line 25
+diff -ruN empty/tests/steps/steps9.txt docs2/tests/steps/steps9.txt
+--- a/tests/steps/steps9.txt	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/steps/steps9.txt	2026-11-04 13:47:44.092507049 +0000
+@@ -0,0 +1,4 @@
++1.2	 	speed select
++0.8	0	speed 0
++1.0	t	+10000
++1.5	2	drop -> cookie on last line
+diff -ruN empty/tests/ttytest.py docs2/tests/ttytest.py
+--- a/tests/ttytest.py	1970-01-01 01:00:00.000000000 +0100
++++ b/tests/ttytest.py	2026-11-04 13:47:44.087794226 +0000
+@@ -0,0 +1,101 @@
++#!/usr/bin/env python3
++"""Drive trojka inside a pseudo-terminal and dump rendered screens.
++
++Usage:  ttytest.py <steps-file> [-- cmd ...]
++
++Each line of the steps file is:   <delay-seconds> <TAB> <keys> <TAB> <label>
++`keys` is a python string literal (so "\\n", "\\x0c" etc. work); empty means
++"just wait".  After each step the emulated 80x25 screen is printed.
++"""
++import os, pty, select, signal, sys, time
++
++import pyte
++
++COLS = int(os.environ.get("TTYTEST_COLS", 80))
++ROWS = int(os.environ.get("TTYTEST_ROWS", 25))
++
++
++def render(screen, label, step):
++    print("=" * 78)
++    print(f"[step {step}] {label}")
++    print("=" * 78)
++    for y, line in enumerate(screen.display, 1):
++        print(f"{y:2d}|{line.rstrip()}")
++    print()
++
++
++def main():
++    steps_file = sys.argv[1]
++    cmd = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else ["./trojka"]
++
++    steps = []
++    with open(steps_file) as fh:
++        for raw in fh:
++            raw = raw.rstrip("\n")
++            if not raw or raw.startswith("#"):
++                continue
++            delay, keys, label = raw.split("\t")
++            steps.append((float(delay), eval('"' + keys + '"'), label))
++
++    stream = pyte.Stream(pyte.Screen(COLS, ROWS))
++    screen = stream.listener
++
++    pid, fd = pty.fork()
++    if pid == 0:
++        # vt100 has no `rep` capability; pyte does not implement ECMA-48 REP
++        os.environ["TERM"] = os.environ.get("TTYTEST_TERM", "vt100")
++        os.environ["LINES"] = str(ROWS)
++        os.environ["COLUMNS"] = str(COLS)
++        os.execvp(cmd[0], cmd)
++
++    import fcntl, struct, termios
++    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
++
++    def pump(seconds):
++        end = time.time() + seconds
++        while True:
++            left = end - time.time()
++            if left <= 0:
++                return True
++            r, _, _ = select.select([fd], [], [], left)
++            if not r:
++                continue
++            try:
++                data = os.read(fd, 65536)
++            except OSError:
++                return False
++            if not data:
++                return False
++            stream.feed(data.decode("utf-8", "replace"))
++
++    alive = pump(0.6)
++    for n, (delay, keys, label) in enumerate(steps, 1):
++        if not alive:
++            print(f"!! child exited before step {n} ({label})")
++            break
++        if keys:
++            os.write(fd, keys.encode())
++        alive = pump(delay)
++        render(screen, label, n)
++
++    # drain and reap
++    pump(0.5)
++    try:
++        os.close(fd)
++    except OSError:
++        pass
++    try:
++        _, status = os.waitpid(pid, os.WNOHANG)
++    except ChildProcessError:
++        status = 0
++    else:
++        if _ == 0:
++            os.kill(pid, signal.SIGKILL)
++            _, status = os.waitpid(pid, 0)
++    if os.WIFSIGNALED(status):
++        print(f"### child killed by signal {os.WTERMSIG(status)}")
++        sys.exit(1)
++    print(f"### child exit status {os.WEXITSTATUS(status)}")
++
++
++main()

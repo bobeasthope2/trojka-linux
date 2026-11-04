@@ -1,0 +1,19 @@
+trojka (1.0-1) noble; urgency=medium
+
+  * Initial Debian/Ubuntu packaging of the Linux port.
+  * Upstream never numbered the Unix release; 1.0 here corresponds to the
+    distfile of 20 October 1995, which is the last Unix source drop.
+  * Port of the original K&R C sources to C99 + ncurses:
+    - Fix ioctl(FIONREAD) reading into a long on LP64.
+    - Replace fflush(stdin) with a real curses keyboard flush.
+    - Fix usleep(1800000) exceeding the permitted argument range.
+    - Add the missing return from selectspeed().
+    - Move the score file from the unwritable /usr/games/lib to a
+      per-user $HOME/.trojka.scores.
+    - Draw cookie messages on the last line when the terminal has only
+      24 rows, so they are no longer invisible.
+    - Clear the TAGGED shadow matrix between games.
+  * Add LDFLAGS to the link line so the build honours the distribution
+    hardening flags.
+
+ -- Bob Easthope <bob@mathscircle.com>  Wed, 04 Nov 2026 14:00:17 +0000

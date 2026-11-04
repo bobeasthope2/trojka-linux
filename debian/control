@@ -1,0 +1,23 @@
+Source: trojka
+Section: games
+Maintainer: Bob Easthope <bob@mathscircle.com>
+Build-Depends: debhelper-compat (= 13),
+               libncurses-dev,
+               pkgconf
+Standards-Version: 4.7.3
+Homepage: https://github.com/bobeasthope2/trojka-linux
+
+Package: trojka
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: terminal match-three falling blocks game
+ Trojka is a curses falling-blocks puzzle game written by Maarten Los in
+ 1992.  Blocks drop into a well and are cleared when three or more matching
+ patterns line up horizontally or diagonally.  Three consecutive collapses
+ in a row score a "Trojka" bonus.  Ten difficulty levels are selectable at
+ the start of each game.
+ .
+ This package contains the terminal (ncurses) version, modernised from the
+ original K&R C sources to build cleanly on current Linux systems.  High
+ scores are kept per user in $HOME/.trojka.scores, so no system-wide score
+ file or setgid binary is needed.

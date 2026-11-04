@@ -1,0 +1,7 @@
+# "IMPLEMENTION" is a typo in the verbatim upstream licence text and must be
+# reproduced exactly, since the licence requires the notice be kept intact.
+trojka: spelling-error-in-copyright IMPLEMENTION IMPLEMENTATION
+
+# This is a local port, never uploaded to an archive, so there is no bug to
+# close in the initial changelog entry.
+trojka: initial-upload-closes-no-bugs
