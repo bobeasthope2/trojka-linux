@@ -4,6 +4,9 @@
 #   make            fetch, patch and build the .deb
 #   make install    install the built package
 #   make fetch      download and verify the upstream distfile only
+#
+# Where the original source comes from is configured in upstream.conf;
+# what gets applied on top is listed in debian/patches/series.
 #   make check      run the pty test suite against the built binary
 #   make clean      remove the build tree (keeps the downloaded distfile)
 #   make distclean  also remove the downloaded distfile
@@ -29,7 +32,7 @@ all: package
 
 fetch: $(ORIG)
 
-$(ORIG): distinfo fetch-upstream.sh
+$(ORIG): upstream.conf fetch-upstream.sh
 	./fetch-upstream.sh
 
 # Unpack upstream, drop our debian/ directory in, and let dpkg-source apply

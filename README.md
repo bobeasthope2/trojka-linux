@@ -17,10 +17,16 @@ bonus. Ten difficulty levels.
 
 ## This repository contains no upstream source code
 
-Only the packaging and the patches. The original 1995 Unix distfile is
-downloaded at build time from the same mirrors the FreeBSD ports tree uses for
-`games/trojka`, and verified against the SHA256 in [`distinfo`](distinfo) —
-the same checksum FreeBSD records.
+Only the packaging and the patches. Two files describe the build:
+
+- [`upstream.conf`](upstream.conf) — where the original code comes from:
+  mirror list, filename, SHA256 and size.
+- [`debian/patches/series`](debian/patches/series) — what gets applied on top.
+
+`make` reads the first, downloads and verifies the original 1995 distfile,
+then applies the second. The checksum and master site are the ones the FreeBSD
+ports tree records for `games/trojka`, so a download can be cross-checked
+against theirs.
 
 This is deliberate. See [Licence](#licence) below.
 
@@ -35,6 +41,9 @@ sudo make install
 `make` downloads `trojka.tar.gz` into `distfiles/`, refuses to proceed unless
 the checksum matches, applies the patch series and produces
 `build/trojka_1.0-1_amd64.deb`.
+
+To build against a different mirror or a newer upstream drop, edit
+`upstream.conf`; nothing else needs changing.
 
 Other targets: `make fetch` (download only), `make check` (run the test suite),
 `make clean`, `make distclean`.

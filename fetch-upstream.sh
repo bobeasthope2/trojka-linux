@@ -1,37 +1,39 @@
 #!/bin/sh
 #
-# Fetch the upstream Trojka distfile and verify it against distinfo.
+# Pull in the original Trojka source, as described by upstream.conf.
 #
 # This repository contains no upstream source code: only the Debian packaging
 # and the patches that port the 1995 sources to modern Linux.  The original
-# tarball is downloaded from the same mirrors the FreeBSD ports tree uses.
+# tarball is downloaded from the mirrors listed in upstream.conf and verified
+# against the checksum there before anything else touches it.
 #
 set -eu
 
-DISTFILE=trojka.tar.gz
-ORIG=trojka_1.0.orig.tar.gz
+CONF=${CONF:-upstream.conf}
 DISTDIR=${DISTDIR:-distfiles}
 
-# MASTER_SITES, in preference order.  The funet.fi entry is the master site
-# recorded in the FreeBSD port; distcache is FreeBSD's own mirror of it.
-MIRRORS="
-https://www.nic.funet.fi/pub/unix/games/${DISTFILE}
-http://distcache.freebsd.org/ports-distfiles/${DISTFILE}
-ftp://ftp.funet.fi/pub/unix/games/${DISTFILE}
-"
-
-want_sha=$(sed -n 's/^SHA256 (.*) = //p' distinfo)
-want_size=$(sed -n 's/^SIZE (.*) = //p' distinfo)
-
-if [ -z "$want_sha" ] || [ -z "$want_size" ]; then
-	echo "fetch-upstream: cannot read checksums from distinfo" >&2
+if [ ! -r "$CONF" ]; then
+	echo "fetch-upstream: cannot read $CONF" >&2
 	exit 1
 fi
 
+# shellcheck source=upstream.conf
+. "./$CONF"
+
+for v in DISTFILE UPSTREAM_VERSION SHA256 SIZE MIRRORS; do
+	eval "val=\${$v:-}"
+	if [ -z "$val" ]; then
+		echo "fetch-upstream: $v is not set in $CONF" >&2
+		exit 1
+	fi
+done
+
+ORIG=trojka_${UPSTREAM_VERSION}.orig.tar.gz
+
 verify() {
 	[ -f "$1" ] || return 1
-	[ "$(wc -c < "$1" | tr -d ' ')" = "$want_size" ] || return 1
-	[ "$(sha256sum < "$1" | cut -d' ' -f1)" = "$want_sha" ] || return 1
+	[ "$(wc -c < "$1" | tr -d ' ')" = "$SIZE" ] || return 1
+	[ "$(sha256sum < "$1" | cut -d' ' -f1)" = "$SHA256" ] || return 1
 	return 0
 }
 
@@ -62,18 +64,19 @@ if ! verify "$DISTDIR/$DISTFILE"; then
 
 fetch-upstream: could not obtain a verified $DISTFILE.
 
-All mirrors failed.  The file is the 1995 Unix distribution of Trojka,
-also carried by the FreeBSD ports tree as games/trojka.  Place a copy at
-$DISTDIR/$DISTFILE and re-run; it must match:
+Every mirror in $CONF failed.  The file is the 1995 Unix distribution of
+Trojka, also carried by the FreeBSD ports tree as games/trojka.  Put a copy
+at $DISTDIR/$DISTFILE and re-run; it must match:
 
-  SHA256 $want_sha
-  SIZE   $want_size
+  SHA256 $SHA256
+  SIZE   $SIZE
 
 EOF
 	exit 1
 fi
 
 # dpkg-source wants the upstream tarball under the Debian orig name.  The
-# bytes are untouched, so the .dsc checksum still matches FreeBSD's distinfo.
+# bytes are untouched, so the .dsc checksum still matches the one upstream
+# and FreeBSD publish.
 cp -f "$DISTDIR/$DISTFILE" "$DISTDIR/$ORIG"
 echo "fetch-upstream: $DISTDIR/$ORIG ready"
