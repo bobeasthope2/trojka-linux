@@ -1,3 +1,4 @@
 build/
-distfiles/
+distfiles/*
+!distfiles/trojka.tar.gz
 .venv/

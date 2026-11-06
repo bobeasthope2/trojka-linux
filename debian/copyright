@@ -32,7 +32,14 @@ License: Trojka-Unix
  NOTE FOR REDISTRIBUTORS: these terms are not DFSG-free and are more
  restrictive than they may first appear.  The last sentence asks that
  modified source not be redistributed, and modification is permitted only
- to fit the code to the building system's needs.  This package contains
- modified source.  It is therefore suitable for personal and local use,
- but it must not be uploaded to Debian, Ubuntu or any other general
- distribution archive without the copyright holder's permission.
+ to fit the code to the building system's needs.
+ .
+ On 6 November 2026 Maarten Los gave Bob Easthope explicit permission by
+ email to publish this port, writing: "Please keep the repository up by all
+ means; I'm also fine if you want to distribute the ported source directly,
+ if that makes life easier."  See PERMISSION.md in the source repository.
+ .
+ That permission covers this port only.  It is not a relicence, and these
+ terms remain non-free, so this package must not be uploaded to Debian,
+ Ubuntu or any other general distribution archive without obtaining
+ permission in your own right.

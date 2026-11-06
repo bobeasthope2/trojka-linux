@@ -23,10 +23,15 @@ Only the packaging and the patches. Two files describe the build:
   mirror list, filename, SHA256 and size.
 - [`debian/patches/series`](debian/patches/series) — what gets applied on top.
 
-`make` reads the first, downloads and verifies the original 1995 distfile,
-then applies the second. The checksum and master site are the ones the FreeBSD
-ports tree records for `games/trojka`, so a download can be cross-checked
-against theirs.
+`make` verifies the original 1995 distfile, then applies the second. The
+checksum and master site are the ones the FreeBSD ports tree records for
+`games/trojka`, so the file can be cross-checked against theirs.
+
+A pristine copy of that distfile is committed at `distfiles/trojka.tar.gz`, so
+**the build needs no network access** and keeps working even if the upstream
+mirrors disappear. It is byte-for-byte upstream's own tarball — redistributing
+it unmodified is explicitly permitted. If you delete it, `make` falls back to
+downloading from the mirrors in `upstream.conf`.
 
 This is deliberate. See [Licence](#licence) below.
 
@@ -38,9 +43,9 @@ make            # fetch, verify, patch, build
 sudo make install
 ```
 
-`make` downloads `trojka.tar.gz` into `distfiles/`, refuses to proceed unless
-the checksum matches, applies the patch series and produces
-`build/trojka_1.0-1_amd64.deb`.
+`make` verifies `distfiles/trojka.tar.gz`, refuses to proceed unless the
+checksum matches, applies the patch series and produces
+`build/trojka_1.0-1_amd64.deb`. No network access is required.
 
 To build against a different mirror or a newer upstream drop, edit
 `upstream.conf`; nothing else needs changing.
@@ -48,8 +53,7 @@ To build against a different mirror or a newer upstream drop, edit
 Other targets: `make fetch` (download only), `make check` (run the test suite),
 `make clean`, `make distclean`.
 
-If every mirror is down, drop a verified copy of `trojka.tar.gz` into
-`distfiles/` yourself and re-run `make`.
+The bundled distfile means mirror outages cannot break the build.
 
 ## Play
 
@@ -118,12 +122,16 @@ modification only to fit the code to your own system, and then says:
 
 That is why this repository ships patches rather than a modified source tree —
 the same approach FreeBSD has used for `games/trojka` for about thirty years.
-Nothing here reproduces upstream's code; the patches and the packaging are
-original work.
 
-Building the package locally is squarely within what the licence permits.
-**Do not upload the result to Debian, Ubuntu or any other general distribution
-archive** without the copyright holder's permission.
+**The author has since seen this work and given his blessing** — see
+[PERMISSION.md](PERMISSION.md) for his words and the date. The patch-based
+layout is kept because it documents exactly what changed from the 1995 sources,
+not because it is still required.
+
+That permission applies to this repository. It is not a relicence, and Trojka
+remains non-free in the OSI and DFSG sense. **Do not upload this to Debian,
+Ubuntu or any other general distribution archive** without obtaining permission
+in your own right.
 
 The name *Trojka* and the game concept are copyright © 1989–1995 Maarten Los.
 Patches and packaging © 2026 Bob Easthope.

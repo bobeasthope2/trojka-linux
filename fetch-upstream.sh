@@ -2,10 +2,13 @@
 #
 # Pull in the original Trojka source, as described by upstream.conf.
 #
-# This repository contains no upstream source code: only the Debian packaging
-# and the patches that port the 1995 sources to modern Linux.  The original
-# tarball is downloaded from the mirrors listed in upstream.conf and verified
-# against the checksum there before anything else touches it.
+# A pristine copy of the upstream tarball is committed at distfiles/, so the
+# normal case needs no network at all: it is checksummed and used as-is.  If
+# it is missing or fails verification, it is re-downloaded from the mirrors
+# listed in upstream.conf and verified before anything else touches it.
+#
+# Redistributing upstream's tarball unmodified is explicitly permitted; the
+# port itself lives in debian/patches.
 #
 set -eu
 
