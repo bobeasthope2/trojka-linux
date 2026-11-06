@@ -15,6 +15,19 @@ bonus. Ten difficulty levels.
                             ######################
 ```
 
+## Install the prebuilt package
+
+```sh
+wget https://github.com/bobeasthope2/trojka-linux/releases/download/v1.0-1/trojka_1.0-1_amd64.deb
+sudo apt install ./trojka_1.0-1_amd64.deb
+trojka
+```
+
+That package is **amd64 only**. On any other architecture, build from source
+with the instructions below — it needs no network access.
+
+All releases: https://github.com/bobeasthope2/trojka-linux/releases
+
 ## This repository contains no upstream source code
 
 Only the packaging and the patches. Two files describe the build:
@@ -35,7 +48,7 @@ downloading from the mirrors in `upstream.conf`.
 
 This is deliberate. See [Licence](#licence) below.
 
-## Build
+## Build from source
 
 ```sh
 sudo apt install build-essential debhelper libncurses-dev pkgconf curl
